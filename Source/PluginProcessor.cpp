@@ -183,7 +183,7 @@ void YingyangAudioProcessor::setStateInformation (const void* data, int size)
         parameters.replaceState (juce::ValueTree::fromXml (*xml));
 }
 
-juce::AudioProcessor* JUCE_CALLTYPE createPluginFilter() 
+juce::AudioProcessorEditor* JUCE_CALLTYPE createPluginFilter() 
 { 
     return new YingyangAudioProcessor(); 
 }
