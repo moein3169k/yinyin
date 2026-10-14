@@ -56,16 +56,16 @@ float YingyangAudioProcessor::softClip (float x, float drive) noexcept
 void YingyangAudioProcessor::prepareToPlay (double sampleRate, int)
 {
     sr = sampleRate;
-    const int totalChannels = juce::jmax (2, getTotalNumInputChannels());
-    
-    // Vektör boyutlarını hazırlayıp içlerini sıfırlıyoruz
-    lowState.assign (totalChannels, 0.0f);
-    highState.assign (totalChannels, 0.0f);
-    deEssLow.assign (totalChannels, 0.0f);
-    fetEnv.assign (totalChannels, 0.0f);
-    optoEnv.assign (totalChannels, 0.0f);
-    noiseEnv.assign (totalChannels, 0.0f);
-    deEssEnv.assign (totalChannels, 0.0f);
+    for (int i = 0; i < 2; ++i)
+    {
+        lowState[i] = 0.0f;
+        highState[i] = 0.0f;
+        deEssLow[i] = 0.0f;
+        fetEnv[i] = 0.0f;
+        optoEnv[i] = 0.0f;
+        noiseEnv[i] = 0.0f;
+        deEssEnv[i] = 0.0f;
+    }
 }
 void YingyangAudioProcessor::releaseResources() {}
 
@@ -79,12 +79,11 @@ bool YingyangAudioProcessor::isBusesLayoutSupported (const BusesLayout& layouts)
 void YingyangAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::MidiBuffer&)
 {
     juce::ScopedNoDenormals noDenormals;
-    const int channels = buffer.getNumChannels();
+    const int channels = juce::jmin (2, buffer.getNumChannels());
     const int n = buffer.getNumSamples();
+    
     for (int ch = getTotalNumInputChannels(); ch < getTotalNumOutputChannels(); ++ch)
         buffer.clear (ch, 0, n);
-
-    if (lowState.size() < static_cast<size_t>(channels)) return;
 
     const float bassDb = get ("BASS"), midDb = get ("MID"), trebleDb = get ("TREBLE");
     const float sat = get ("SAT") / 100.0f;
@@ -120,8 +119,8 @@ void YingyangAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juc
         {
             const float input = x[i];
             
-            lowState[ch] = lowA * (input - lowState[ch]) + lowState[ch];
-            highState[ch] = midA * (input - highState[ch]) + highState[ch];
+            lowState[ch] += lowA * (input - lowState[ch]);
+            highState[ch] += midA * (input - highState[ch]);
             
             const float low = lowState[ch];
             const float mid = highState[ch] - lowState[ch];
@@ -148,7 +147,7 @@ void YingyangAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juc
             const float grDb = grFet * (1.0f - blend) + grOpto * blend;
             float y = toned * dbToGain (-grDb);
 
-            deEssLow[ch] = deA * (y - deEssLow[ch]) + deEssLow[ch];
+            deEssLow[ch] += deA * (y - deEssLow[ch]);
             const float highBand = y - deEssLow[ch];
             const float sib = std::abs (highBand);
             const float dc = sib > deEssEnv[ch] ? deAttack : deRelease;
