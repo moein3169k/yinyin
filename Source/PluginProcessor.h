@@ -37,14 +37,15 @@ private:
     static float softClip (float x, float drive) noexcept;
 
     double sr = 44100.0;
-    // Per-channel one-pole state for tone shelves and de-esser split.
-    float lowState[2] { 0.0f, 0.0f };
-    float highState[2] { 0.0f, 0.0f };
-    float deEssLow[2] { 0.0f, 0.0f };
-    float fetEnv[2] { 0.0f, 0.0f };
-    float optoEnv[2] { 0.0f, 0.0f };
-    float noiseEnv[2] { 0.0f, 0.0f };
-    float deEssEnv[2] { 0.0f, 0.0f };
+    
+    // Güvenli kanal durumu için 8 elemanlı dizi yapısı kullanıyoruz
+    float lowState[8] { 0.0f };
+    float highState[8] { 0.0f };
+    float deEssLow[8] { 0.0f };
+    float fetEnv[8] { 0.0f };
+    float optoEnv[8] { 0.0f };
+    float noiseEnv[8] { 0.0f };
+    float deEssEnv[8] { 0.0f };
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (YingyangAudioProcessor)
 };
