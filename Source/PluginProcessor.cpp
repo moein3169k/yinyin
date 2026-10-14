@@ -56,13 +56,16 @@ float YingyangAudioProcessor::softClip (float x, float drive) noexcept
 void YingyangAudioProcessor::prepareToPlay (double sampleRate, int)
 {
     sr = sampleRate;
-    lowState = 0.0f;
-    highState = 0.0f;
-    deEssLow = 0.0f;
-    fetEnv = 0.0f;
-    optoEnv = 0.0f;
-    noiseEnv = 0.0f;
-    deEssEnv = 0.0f;
+    const int totalChannels = juce::jmax (2, getTotalNumInputChannels());
+    
+    // Vektör boyutlarını hazırlayıp içlerini sıfırlıyoruz
+    lowState.assign (totalChannels, 0.0f);
+    highState.assign (totalChannels, 0.0f);
+    deEssLow.assign (totalChannels, 0.0f);
+    fetEnv.assign (totalChannels, 0.0f);
+    optoEnv.assign (totalChannels, 0.0f);
+    noiseEnv.assign (totalChannels, 0.0f);
+    deEssEnv.assign (totalChannels, 0.0f);
 }
 void YingyangAudioProcessor::releaseResources() {}
 
@@ -80,6 +83,8 @@ void YingyangAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juc
     const int n = buffer.getNumSamples();
     for (int ch = getTotalNumInputChannels(); ch < getTotalNumOutputChannels(); ++ch)
         buffer.clear (ch, 0, n);
+
+    if (lowState.size() < static_cast<size_t>(channels)) return;
 
     const float bassDb = get ("BASS"), midDb = get ("MID"), trebleDb = get ("TREBLE");
     const float sat = get ("SAT") / 100.0f;
@@ -114,23 +119,27 @@ void YingyangAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juc
         for (int i = 0; i < n; ++i)
         {
             const float input = x[i];
-            lowState += lowA * (input - lowState);
-            highState += midA * (input - highState);
-            const float low = lowState;
-            const float mid = highState - lowState;
-            const float high = input - highState;
+            
+            lowState[ch] = lowA * (input - lowState[ch]) + lowState[ch];
+            highState[ch] = midA * (input - highState[ch]) + highState[ch];
+            
+            const float low = lowState[ch];
+            const float mid = highState[ch] - lowState[ch];
+            const float high = input - highState[ch];
             float toned = low * lowGain + mid * midGain + high * highGain;
             
             if (sat > 0.0001f)
                 toned = toned * (1.0f - sat * 0.20f) + softClip (toned, drive) * (sat * 0.42f);
 
             const float level = std::abs (toned);
-            const float fetC = level > fetEnv ? fetAttack : fetRelease;
-            const float optoC = level > optoEnv ? optoAttack : optoRelease;
-            fetEnv = fetC * fetEnv + (1.0f - fetC) * level;
-            optoEnv = optoC * optoEnv + (1.0f - optoC) * level;
-            const float fetDb = 20.0f * std::log10 (juce::jmax (1.0e-6f, fetEnv));
-            const float optoDb = 20.0f * std::log10 (juce::jmax (1.0e-6f, optoEnv));
+            const float fetC = level > fetEnv[ch] ? fetAttack : fetRelease;
+            const float optoC = level > optoEnv[ch] ? optoAttack : optoRelease;
+            
+            fetEnv[ch] = fetC * fetEnv[ch] + (1.0f - fetC) * level;
+            optoEnv[ch] = optoC * optoEnv[ch] + (1.0f - optoC) * level;
+            
+            const float fetDb = 20.0f * std::log10 (juce::jmax (1.0e-6f, fetEnv[ch]));
+            const float optoDb = 20.0f * std::log10 (juce::jmax (1.0e-6f, optoEnv[ch]));
             const float overFet = juce::jmax (0.0f, fetDb - threshold);
             const float overOpto = juce::jmax (0.0f, optoDb - threshold);
             const float grFet = overFet * (1.0f - 1.0f / ratio);
@@ -139,31 +148,33 @@ void YingyangAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juc
             const float grDb = grFet * (1.0f - blend) + grOpto * blend;
             float y = toned * dbToGain (-grDb);
 
-            deEssLow += deA * (y - deEssLow);
-            const float highBand = y - deEssLow;
+            deEssLow[ch] = deA * (y - deEssLow[ch]) + deEssLow[ch];
+            const float highBand = y - deEssLow[ch];
             const float sib = std::abs (highBand);
-            const float dc = sib > deEssEnv ? deAttack : deRelease;
-            deEssEnv = dc * deEssEnv + (1.0f - dc) * sib;
-            const float sibDb = 20.0f * std::log10 (juce::jmax (1.0e-6f, deEssEnv));
+            const float dc = sib > deEssEnv[ch] ? deAttack : deRelease;
+            
+            deEssEnv[ch] = dc * deEssEnv[ch] + (1.0f - dc) * sib;
+            const float sibDb = 20.0f * std::log10 (juce::jmax (1.0e-6f, deEssEnv[ch]));
             const float sibOver = juce::jmax (0.0f, sibDb - (-30.0f));
             const float deAttenDb = juce::jmin (12.0f, sibOver * deEss * 0.55f);
-            y = deEssLow + highBand * dbToGain (-deAttenDb);
+            y = deEssLow[ch] + highBand * dbToGain (-deAttenDb);
 
-            const float nc = std::abs (y) > noiseEnv ? noiseAttack : noiseRelease;
-            noiseEnv = nc * noiseEnv + (1.0f - nc) * std::abs (y);
+            const float nc = std::abs (y) > noiseEnv[ch] ? noiseAttack : noiseRelease;
+            noiseEnv[ch] = nc * noiseEnv[ch] + (1.0f - nc) * std::abs (y);
             const float floor = dbToGain (-66.0f + noise * 22.0f);
             float noiseGain = 1.0f;
-            if (noise > 0.0001f && noiseEnv < floor)
+            
+            if (noise > 0.0001f && noiseEnv[ch] < floor)
             {
-                const float relative = juce::jlimit (0.0f, 1.0f, noiseEnv / juce::jmax (floor, 1.0e-6f));
+                const float relative = juce::jlimit (0.0f, 1.0f, noiseEnv[ch] / juce::jmax (floor, 1.0e-6f));
                 noiseGain = 1.0f - noise * (1.0f - relative) * 0.88f;
             }
+            
             x[i] = y * noiseGain * outGain;
         }
     }
 }
 
-// Buradaki 'juce::AudioProcessorEditor*' artık .h dosyanla tamamen aynı!
 juce::AudioProcessorEditor* YingyangAudioProcessor::createEditor() 
 { 
     return new YingyangAudioProcessorEditor (*this); 
@@ -183,7 +194,7 @@ void YingyangAudioProcessor::setStateInformation (const void* data, int size)
         parameters.replaceState (juce::ValueTree::fromXml (*xml));
 }
 
-juce::AudioProcessorEditor* JUCE_CALLTYPE createPluginFilter() 
+juce::AudioProcessor* JUCE_CALLTYPE createPluginFilter() 
 { 
     return new YingyangAudioProcessor(); 
 }
