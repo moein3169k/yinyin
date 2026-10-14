@@ -38,14 +38,14 @@ private:
 
     double sr = 44100.0;
     
-    // Kanalların ses hafıza durumlarını saklayan dinamik yapılar
-    std::vector<float> lowState;
-    std::vector<float> highState;
-    std::vector<float> deEssLow;
-    std::vector<float> fetEnv;
-    std::vector<float> optoEnv;
-    std::vector<float> noiseEnv;
-    std::vector<float> deEssEnv;
+    // Sabit 2 kanallı (Stereo) kararlı C++ dizileri
+    float lowState[2]  { 0.0f, 0.0f };
+    float highState[2] { 0.0f, 0.0f };
+    float deEssLow[2]  { 0.0f, 0.0f };
+    float fetEnv[2]    { 0.0f, 0.0f };
+    float optoEnv[2]   { 0.0f, 0.0f };
+    float noiseEnv[2]  { 0.0f, 0.0f };
+    float deEssEnv[2]  { 0.0f, 0.0f };
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (YingyangAudioProcessor)
 };
