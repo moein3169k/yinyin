@@ -56,13 +56,13 @@ float YingyangAudioProcessor::softClip (float x, float drive) noexcept
 void YingyangAudioProcessor::prepareToPlay (double sampleRate, int)
 {
     sr = sampleRate;
-    juce::FloatVectorOperations::clear (lowState, 2);
-    juce::FloatVectorOperations::clear (highState, 2);
-    juce::FloatVectorOperations::clear (deEssLow, 2);
-    juce::FloatVectorOperations::clear (fetEnv, 2);
-    juce::FloatVectorOperations::clear (optoEnv, 2);
-    juce::FloatVectorOperations::clear (noiseEnv, 2);
-    juce::FloatVectorOperations::clear (deEssEnv, 2);
+    juce::FloatVectorOperations::clear (lowState, 8);
+    juce::FloatVectorOperations::clear (highState, 8);
+    juce::FloatVectorOperations::clear (deEssLow, 8);
+    juce::FloatVectorOperations::clear (fetEnv, 8);
+    juce::FloatVectorOperations::clear (optoEnv, 8);
+    juce::FloatVectorOperations::clear (noiseEnv, 8);
+    juce::FloatVectorOperations::clear (deEssEnv, 8);
 }
 void YingyangAudioProcessor::releaseResources() {}
 
@@ -76,14 +76,14 @@ bool YingyangAudioProcessor::isBusesLayoutSupported (const BusesLayout& layouts)
 void YingyangAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::MidiBuffer&)
 {
     juce::ScopedNoDenormals noDenormals;
-    const int channels = juce::jmin (2, buffer.getNumChannels());
+    const int channels = juce::jmin (8, buffer.getNumChannels());
     const int n = buffer.getNumSamples();
     for (int ch = getTotalNumInputChannels(); ch < getTotalNumOutputChannels(); ++ch)
         buffer.clear (ch, 0, n);
 
     const float bassDb = get ("BASS"), midDb = get ("MID"), trebleDb = get ("TREBLE");
     const float sat = get ("SAT") / 100.0f;
-    const float blend = get ("BLEND") / 100.0f; // 0 = FET-forward, 100 = opto-forward
+    const float blend = get ("BLEND") / 100.0f;
     const float threshold = get ("THRESH");
     const float ratio = juce::jmax (1.0f, get ("RATIO"));
     const float attackMs = get ("ATTACK");
@@ -115,14 +115,13 @@ void YingyangAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juc
         for (int i = 0; i < n; ++i)
         {
             const float input = x[i];
-            // Broad, musical three-band tone section before compression.
             lowState[ch] += lowA * (input - lowState[ch]);
             highState[ch] += midA * (input - highState[ch]);
             const float low = lowState[ch];
             const float mid = highState[ch] - lowState[ch];
             const float high = input - highState[ch];
             float toned = low * lowGain + mid * midGain + high * highGain;
-            // Soft tube/tape-inspired harmonic rounding; compensation limits loudness bias.
+            
             if (sat > 0.0001f)
                 toned = toned * (1.0f - sat * 0.20f) + softClip (toned, drive) * (sat * 0.42f);
 
@@ -141,7 +140,6 @@ void YingyangAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juc
             const float grDb = grFet * (1.0f - blend) + grOpto * blend;
             float y = toned * dbToGain (-grDb);
 
-            // Gentle split-band de-essing: only the high band is attenuated.
             deEssLow[ch] += deA * (y - deEssLow[ch]);
             const float highBand = y - deEssLow[ch];
             const float sib = std::abs (highBand);
@@ -152,7 +150,6 @@ void YingyangAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juc
             const float deAttenDb = juce::jmin (12.0f, sibOver * deEss * 0.55f);
             y = deEssLow[ch] + highBand * dbToGain (-deAttenDb);
 
-            // Soft downward expander for low-level noise; not a spectral denoiser.
             const float nc = std::abs (y) > noiseEnv[ch] ? noiseAttack : noiseRelease;
             noiseEnv[ch] = nc * noiseEnv[ch] + (1.0f - nc) * std::abs (y);
             const float floor = dbToGain (-66.0f + noise * 22.0f);
@@ -167,7 +164,7 @@ void YingyangAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juc
     }
 }
 
-juce::AudioProcessorEditor* YingyangAudioProcessor::createEditor() { return new YingyangAudioProcessorEditor (*this); }
+juce::AudioProcessor* YingyangAudioProcessor::createEditor() { return new YingyangAudioProcessorEditor (*this); }
 void YingyangAudioProcessor::getStateInformation (juce::MemoryBlock& dest)
 {
     auto state = parameters.copyState();
