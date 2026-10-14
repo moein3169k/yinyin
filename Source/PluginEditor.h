@@ -14,6 +14,7 @@ private:
     {
         juce::Slider slider;
         juce::Label label;
+        std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment> attachment;
         Knob (YingyangAudioProcessor& p, const juce::String& id, const juce::String& title);
         void resized() override;
     };
@@ -21,6 +22,5 @@ private:
     YingyangAudioProcessor& processor;
     juce::Label title, subtitle, toneHeading, compHeading, cleanHeading, outputHeading;
     std::unique_ptr<Knob> bass, mid, treble, sat, blend, thresh, ratio, attack, release, deess, noise, output;
-    std::vector<std::unique_ptr<Knob>> knobs;
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (YingyangAudioProcessorEditor)
 };
