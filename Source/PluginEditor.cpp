@@ -16,22 +16,17 @@ YingyangAudioProcessorEditor::Knob::Knob (YingyangAudioProcessor& p, const juce:
     slider.setColour (juce::Slider::textBoxBackgroundColourId, panel);
     slider.setColour (juce::Slider::textBoxOutlineColourId, juce::Colours::transparentBlack);
     addAndMakeVisible (slider);
+    
     label.setText (text, juce::dontSendNotification);
     label.setJustificationType (juce::Justification::centred);
     label.setColour (juce::Label::textColourId, muted);
     label.setFont (juce::Font (juce::FontOptions (11.5f).withStyle ("Bold")));
     addAndMakeVisible (label);
-    // Keep the parameter attachment alive for as long as this knob exists.
-    auto* attachment = new juce::AudioProcessorValueTreeState::SliderAttachment (p.parameters, id, slider);
-    struct AttachmentHolder : juce::Component
-    {
-        explicit AttachmentHolder (juce::AudioProcessorValueTreeState::SliderAttachment* a) : attachment (a) {}
-        std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment> attachment;
-    };
-    auto* holder = new AttachmentHolder (attachment);
-    holder->setVisible (false);
-    addAndMakeVisible (holder);
+
+    // Güvenli ve akıllı hafıza bağlantısı kuruldu
+    attachment = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment> (p.parameters, id, slider);
 }
+
 void YingyangAudioProcessorEditor::Knob::resized()
 {
     auto r = getLocalBounds();
@@ -70,10 +65,10 @@ YingyangAudioProcessorEditor::YingyangAudioProcessorEditor (YingyangAudioProcess
     deess  = std::make_unique<Knob> (p, "DEESS", "DE-ESS %");
     noise  = std::make_unique<Knob> (p, "NOISE", "NOISE REDUCTION");
     output = std::make_unique<Knob> (p, "OUTPUT", "OUTPUT GAIN");
+    
     for (auto* k : { bass.get(), mid.get(), treble.get(), sat.get(), blend.get(), thresh.get(), ratio.get(), attack.get(), release.get(), deess.get(), noise.get(), output.get() })
     {
         addAndMakeVisible (*k);
-        knobs.emplace_back (nullptr);
     }
 }
 
@@ -85,7 +80,7 @@ void YingyangAudioProcessorEditor::drawYinYang (juce::Graphics& g, juce::Rectang
     g.setColour (cream); g.fillEllipse (b);
     auto left = b.withWidth (d * 0.5f);
     g.setColour (juce::Colour (0xff17191c)); g.fillRect (left);
-    // S-curve and opposing dots evoke the yin-yang symbol without bitmap assets.
+    
     juce::Path s;
     s.startNewSubPath (b.getCentreX(), b.getY());
     s.cubicTo (b.getX() + d * 0.15f, b.getY() + d * 0.02f, b.getX() + d * 0.15f, b.getY() + d * 0.48f, b.getCentreX(), b.getCentreY());
@@ -116,9 +111,19 @@ void YingyangAudioProcessorEditor::resized()
     cleanHeading.setBounds (32, 542, 220, 20);
     outputHeading.setBounds (750, 542, 200, 20);
 
-    auto place = [] (juce::Component& c, int x, int y, int w, int h) { c.setBounds (x, y, w, h); };
     const int kw = 112, kh = 160;
-    place (*bass, 38, 125, kw, kh); place (*mid, 164, 125, kw, kh); place (*treble, 290, 125, kw, kh); place (*sat, 416, 125, kw, kh);
-    place (*blend, 38, 354, kw, 150); place (*thresh, 164, 354, kw, 150); place (*ratio, 290, 354, kw, 150); place (*attack, 416, 354, kw, 150); place (*release, 542, 354, kw, 150);
-    place (*deess, 38, 562, kw, 68); place (*noise, 190, 562, 150, 68); place (*output, 748, 562, kw, 68);
+    bass->setBounds (38, 125, kw, kh); 
+    mid->setBounds (164, 125, kw, kh); 
+    treble->setBounds (290, 125, kw, kh); 
+    sat->setBounds (416, 125, kw, kh);
+    
+    blend->setBounds (38, 354, kw, 150); 
+    thresh->setBounds (164, 354, kw, 150); 
+    ratio->setBounds (290, 354, kw, 150); 
+    attack->setBounds (416, 354, kw, 150); 
+    release->setBounds (542, 354, kw, 150);
+    
+    deess->setBounds (38, 562, kw, 68); 
+    noise->setBounds (190, 562, 150, 68); 
+    output->setBounds (748, 562, kw, 68);
 }
